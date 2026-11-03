@@ -79,13 +79,22 @@
       </div>
     </section>
 
+    <!-- NOVO: Dashboard de Porcentagens -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+      <h2 class="text-sm font-extrabold text-slate-700 mb-3">Répartition par Catégorie</h2>
+      <div id="categoryBreakdown" class="space-y-3">
+        <!-- Preenchido via JavaScript -->
+        <p class="text-xs text-slate-400 text-center">Chargement...</p>
+      </div>
+    </section>
+
     <!-- Formulaire d'Ajout Rapide -->
     <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
       <h2 class="text-sm font-extrabold text-slate-700 mb-2.5">Nouvelle Dépense</h2>
 
       <!-- Raccourcis rapides -->
       <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 text-xs">
-        <button type="button" onclick="fillPreset('Maxi / Épicerie', 'Épicerie / Maison')" class="shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-semibold">🛒 Maxi</button>
+        <button type="button" onclick="fillPreset('Maxi / Épicerie', 'Épicerie / Maison')" class="shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-semibold">🛒 Epicerie</button>
         <button type="button" onclick="fillPreset('Trajet Communauto', 'Transport - Communauto')" class="shrink-0 bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1.5 rounded-xl font-semibold">🚗 Communauto</button>
         <button type="button" onclick="fillPreset('Pharmaprix', 'Épicerie / Maison')" class="shrink-0 bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded-xl font-semibold">💊 Pharmaprix</button>
         <button type="button" onclick="fillPreset('Hydro / Internet', 'Factures / Services')" class="shrink-0 bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1.5 rounded-xl font-semibold">⚡ Factures</button>
@@ -135,7 +144,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-    // Vos clés exactes extraites de votre capture Firebase
+    // As suas chaves do Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyDw0Gjm1ShSTqsDHUHaqZdk77Hs9_QaiTI",
       authDomain: "depenses-couple-5223b.firebaseapp.com",
@@ -161,7 +170,7 @@
         btnG.className = "py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm";
         btnY.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600";
       } else {
-        btnY.className = "py-1.5 rounded-lg text-xs font-bold bg-pink-600 text-white shadow-sm";
+        btnY.className = "py-1.5 rounded-lg text-xs font-bold bg-yellow-300 text-white shadow-sm";
         btnG.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600";
       }
     };
@@ -173,6 +182,14 @@
     };
 
     const formatMoney = (val) => val.toFixed(2).replace(".", ",") + " $";
+
+    // Dicionário de cores para as barras de progresso do Dashboard
+    const catColors = {
+      "Épicerie / Maison": "bg-emerald-500",
+      "Transport - Communauto": "bg-amber-500",
+      "Factures / Services": "bg-sky-500",
+      "Loisirs / Autres": "bg-pink-500"
+    };
 
     // Écoute en temps réel de Firestore
     const q = query(expensesRef, orderBy("createdAt", "desc"));
@@ -187,11 +204,17 @@
 
     function renderApp() {
       let total = 0, paidG = 0, paidY = 0;
+      let catTotals = {};
+
       allExpenses.forEach(item => {
         const amt = Number(item.amount) || 0;
         total += amt;
+        
         if (item.payer === "Gabriel") paidG += amt;
         else paidY += amt;
+
+        // Soma por categoria
+        catTotals[item.category] = (catTotals[item.category] || 0) + amt;
       });
 
       const half = total / 2;
@@ -218,6 +241,31 @@
       document.getElementById("totalMonthGabriel").textContent = formatMoney(550 + half);
       document.getElementById("totalMonthYaya").textContent = formatMoney(800 + half);
 
+      // --- RENDERIZAR O DASHBOARD DE CATEGORIAS ---
+      const breakdownEl = document.getElementById("categoryBreakdown");
+      if (total === 0) {
+        breakdownEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Aucune dépense pour calculer les pourcentages.</p>';
+      } else {
+        // Ordena do maior para o menor gasto
+        const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+        breakdownEl.innerHTML = sortedCats.map(([cat, amt]) => {
+          const pct = ((amt / total) * 100).toFixed(1);
+          const barColor = catColors[cat] || "bg-indigo-500";
+          return `
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1 text-slate-700">
+                <span>${cat}</span>
+                <span>${formatMoney(amt)} (${pct}%)</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2">
+                <div class="${barColor} h-2 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // --- RENDERIZAR HISTÓRICO ---
       const listEl = document.getElementById("expenseList");
       if (allExpenses.length === 0) {
         listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Aucune dépense enregistrée.</p>`;
