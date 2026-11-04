@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Suivi des Dépenses — Gabriel & Yaya</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
@@ -38,11 +39,11 @@
 
         <div class="grid grid-cols-2 gap-2 text-xs bg-black/20 rounded-xl p-2.5 mb-3">
           <div>
-            <span class="text-sky-200 block">Payé par Gabriel</span>
+            <span class="text-sky-300 block">Payé par Gabriel</span>
             <strong id="paidGabriel" class="text-sm">0,00 $</strong>
           </div>
           <div class="text-right">
-            <span class="text-pink-200 block">Payé par Yaya</span>
+            <span class="text-yellow-300 block">Payé par Yaya</span>
             <strong id="paidYaya" class="text-sm">0,00 $</strong>
           </div>
         </div>
@@ -79,11 +80,17 @@
       </div>
     </section>
 
-    <!-- NOVO: Dashboard de Porcentagens -->
+    <!-- Dashboard em Círculo (Doughnut Chart) -->
     <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-      <h2 class="text-sm font-extrabold text-slate-700 mb-3">Répartition par Catégorie</h2>
-      <div id="categoryBreakdown" class="space-y-3">
-        <!-- Preenchido via JavaScript -->
+      <h2 class="text-sm font-extrabold text-slate-700 mb-2">Répartition par Catégorie</h2>
+      
+      <!-- Canvas para o gráfico Chart.js -->
+      <div class="relative h-44 mb-4">
+        <canvas id="catChart"></canvas>
+      </div>
+      
+      <!-- Legenda personalizada abaixo do gráfico -->
+      <div id="categoryLegend" class="space-y-2.5">
         <p class="text-xs text-slate-400 text-center">Chargement...</p>
       </div>
     </section>
@@ -94,7 +101,7 @@
 
       <!-- Raccourcis rapides -->
       <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 text-xs">
-        <button type="button" onclick="fillPreset('Maxi / Épicerie', 'Épicerie / Maison')" class="shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-semibold">🛒 Epicerie</button>
+        <button type="button" onclick="fillPreset('Maxi / Épicerie', 'Épicerie / Maison')" class="shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-xl font-semibold">🛒 Maxi</button>
         <button type="button" onclick="fillPreset('Trajet Communauto', 'Transport - Communauto')" class="shrink-0 bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1.5 rounded-xl font-semibold">🚗 Communauto</button>
         <button type="button" onclick="fillPreset('Pharmaprix', 'Épicerie / Maison')" class="shrink-0 bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1.5 rounded-xl font-semibold">💊 Pharmaprix</button>
         <button type="button" onclick="fillPreset('Hydro / Internet', 'Factures / Services')" class="shrink-0 bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1.5 rounded-xl font-semibold">⚡ Factures</button>
@@ -115,6 +122,7 @@
             <option value="Loisirs / Autres">🎬 Loisirs / Autres</option>
           </select>
 
+          <!-- Botões atualizados com Azul (Gabriel) e Amarelo (Yaya) -->
           <div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
             <button type="button" id="btnPayerGabriel" onclick="setPayer('Gabriel')" class="py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm">Gabriel</button>
             <button type="button" id="btnPayerYaya" onclick="setPayer('Yaya')" class="py-1.5 rounded-lg text-xs font-bold text-slate-600">Yaya</button>
@@ -144,7 +152,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-    // As suas chaves do Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyDw0Gjm1ShSTqsDHUHaqZdk77Hs9_QaiTI",
       authDomain: "depenses-couple-5223b.firebaseapp.com",
@@ -161,17 +168,19 @@
 
     let currentPayer = "Gabriel";
     let allExpenses = [];
+    let donutChart = null;
 
+    // Função de alternância de cores atualizada (Azul x Amarelo)
     window.setPayer = (payer) => {
       currentPayer = payer;
       const btnG = document.getElementById("btnPayerGabriel");
       const btnY = document.getElementById("btnPayerYaya");
       if (payer === "Gabriel") {
         btnG.className = "py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm";
-        btnY.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600";
+        btnY.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-transparent";
       } else {
-        btnY.className = "py-1.5 rounded-lg text-xs font-bold bg-yellow-300 text-white shadow-sm";
-        btnG.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600";
+        btnY.className = "py-1.5 rounded-lg text-xs font-bold bg-yellow-400 text-slate-900 shadow-sm";
+        btnG.className = "py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-transparent";
       }
     };
 
@@ -183,15 +192,13 @@
 
     const formatMoney = (val) => val.toFixed(2).replace(".", ",") + " $";
 
-    // Dicionário de cores para as barras de progresso do Dashboard
-    const catColors = {
-      "Épicerie / Maison": "bg-emerald-500",
-      "Transport - Communauto": "bg-amber-500",
-      "Factures / Services": "bg-sky-500",
-      "Loisirs / Autres": "bg-pink-500"
+    const catColorsHex = {
+      "Épicerie / Maison": "#10b981",
+      "Transport - Communauto": "#f59e0b",
+      "Factures / Services": "#0ea5e9",
+      "Loisirs / Autres": "#ec4899"
     };
 
-    // Écoute en temps réel de Firestore
     const q = query(expensesRef, orderBy("createdAt", "desc"));
     onSnapshot(q, (snapshot) => {
       document.getElementById("syncStatus").textContent = "🟢 En ligne";
@@ -213,7 +220,6 @@
         if (item.payer === "Gabriel") paidG += amt;
         else paidY += amt;
 
-        // Soma por categoria
         catTotals[item.category] = (catTotals[item.category] || 0) + amt;
       });
 
@@ -241,31 +247,69 @@
       document.getElementById("totalMonthGabriel").textContent = formatMoney(550 + half);
       document.getElementById("totalMonthYaya").textContent = formatMoney(800 + half);
 
-      // --- RENDERIZAR O DASHBOARD DE CATEGORIAS ---
-      const breakdownEl = document.getElementById("categoryBreakdown");
+      const legendEl = document.getElementById("categoryLegend");
+      
       if (total === 0) {
-        breakdownEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Aucune dépense pour calculer les pourcentages.</p>';
+        legendEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Aucune dépense pour calculer les pourcentages.</p>';
+        if (donutChart) {
+          donutChart.destroy();
+          donutChart = null;
+        }
       } else {
-        // Ordena do maior para o menor gasto
         const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-        breakdownEl.innerHTML = sortedCats.map(([cat, amt]) => {
+        
+        const labels = sortedCats.map(c => c[0]);
+        const data = sortedCats.map(c => c[1]);
+        const bgColors = labels.map(l => catColorsHex[l] || "#6366f1");
+
+        if (donutChart) {
+          donutChart.data.labels = labels;
+          donutChart.data.datasets[0].data = data;
+          donutChart.data.datasets[0].backgroundColor = bgColors;
+          donutChart.update();
+        } else {
+          const ctx = document.getElementById('catChart').getContext('2d');
+          donutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: data,
+                backgroundColor: bgColors,
+                borderWidth: 2,
+                borderColor: '#ffffff',
+                hoverOffset: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '70%',
+              plugins: {
+                legend: { display: false }
+              }
+            }
+          });
+        }
+
+        legendEl.innerHTML = sortedCats.map(([cat, amt]) => {
           const pct = ((amt / total) * 100).toFixed(1);
-          const barColor = catColors[cat] || "bg-indigo-500";
+          const color = catColorsHex[cat] || "#6366f1";
           return `
-            <div>
-              <div class="flex justify-between text-xs font-bold mb-1 text-slate-700">
+            <div class="flex justify-between items-center text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background-color: ${color}"></span>
                 <span>${cat}</span>
-                <span>${formatMoney(amt)} (${pct}%)</span>
               </div>
-              <div class="w-full bg-slate-100 rounded-full h-2">
-                <div class="${barColor} h-2 rounded-full" style="width: ${pct}%"></div>
+              <div class="text-right">
+                <span>${formatMoney(amt)}</span>
+                <span class="text-slate-400 font-normal ml-1">(${pct}%)</span>
               </div>
             </div>
           `;
         }).join("");
       }
 
-      // --- RENDERIZAR HISTÓRICO ---
       const listEl = document.getElementById("expenseList");
       if (allExpenses.length === 0) {
         listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Aucune dépense enregistrée.</p>`;
@@ -273,7 +317,8 @@
       }
 
       listEl.innerHTML = allExpenses.map(item => {
-        const badgeColor = item.payer === "Gabriel" ? "bg-sky-100 text-sky-700" : "bg-pink-100 text-pink-700";
+        // Cores das tags no histórico atualizadas para azul (Gabriel) e amarelo (Yaya)
+        const badgeColor = item.payer === "Gabriel" ? "bg-sky-100 text-sky-700" : "bg-yellow-100 text-yellow-800";
         return `
           <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
             <div>
